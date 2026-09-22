@@ -116,6 +116,8 @@ import static gcewing.architecture.common.shape.Shape.WindowMullion;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.init.Blocks;
@@ -127,9 +129,14 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
 import gcewing.architecture.ArchitectureCraft;
+import gcewing.architecture.common.item.ArchitectureItemBlock;
+import gcewing.architecture.common.item.ItemCladding;
 import gcewing.architecture.common.shape.Shape;
 import gcewing.architecture.common.shape.ShapePage;
+import gcewing.architecture.compat.BlockCompatUtils;
 import gcewing.architecture.compat.Directions;
+import gcewing.architecture.compat.IBlockState;
+import gcewing.architecture.compat.MetaBlockState;
 
 public class TileSawbench extends TileArchitectureInventory implements IRestrictedDroppingInventory {
 
@@ -138,6 +145,8 @@ public class TileSawbench extends TileArchitectureInventory implements IRestrict
 
     final public static int[] materialSideSlots = { materialSlot };
     final public static int[] resultSideSlots = { resultSlot };
+
+    private final static int GLOW_PAGE_IDX = 7;
 
     public static final boolean allowAutomation = false;
 
@@ -397,25 +406,39 @@ public class TileSawbench extends TileArchitectureInventory implements IRestrict
 
     protected ItemStack makeResultStack() {
         Shape resultShape = getSelectedShape();
-        boolean shaderEmissive = getSelectedPageIndex() == 7;
-        if (resultShape != null) {
-            ItemStack materialStack = getStackInSlot(materialSlot);
-            if (materialStack != null && materialStack.stackSize >= resultShape.materialUsed) {
-                Item materialItem = materialStack.getItem();
+        if (resultShape == null) {
+            return null;
+        }
+        boolean shaderEmissive = getSelectedPageIndex() == GLOW_PAGE_IDX;
 
-                if (materialItem instanceof ItemBlock) {
-                    Block materialBlock = Block.getBlockFromItem(materialItem);
-                    if (isAcceptableMaterial(materialBlock)) {
-                        return resultShape.kind.newStack(
-                                resultShape,
-                                materialBlock,
-                                materialStack.getItemDamage(),
-                                resultShape.itemsProduced,
-                                shaderEmissive);
-                    }
+        ItemStack materialStack = getStackInSlot(materialSlot);
+        if (materialStack == null) {
+            return null;
+        }
+
+        Item materialItem = materialStack.getItem();
+        if (materialItem instanceof ArchitectureItemBlock || materialItem instanceof ItemCladding) {
+            ItemStack resultStack = uncraftArchitectureBlock(materialStack);
+            if (resultStack != null) {
+                return resultStack;
+            }
+        }
+
+        if (materialItem instanceof ItemBlock) {
+            Block materialBlock = Block.getBlockFromItem(materialItem);
+            int factor = materialBlock instanceof BlockSlab ? 2 : 1;
+            if (materialStack.stackSize >= resultShape.materialUsed * factor) {
+                if (isAcceptableMaterial(materialBlock)) {
+                    return resultShape.kind.newStack(
+                            resultShape,
+                            materialBlock,
+                            materialStack.getItemDamage(),
+                            resultShape.itemsProduced,
+                            shaderEmissive);
                 }
             }
         }
+
         return null;
     }
 
@@ -424,23 +447,47 @@ public class TileSawbench extends TileArchitectureInventory implements IRestrict
                 || block instanceof BlockSlab
                 || acceptableMaterialsFromConfig.contains(block.getUnlocalizedName()))
             return true;
-        return block.renderAsNormalBlock() && !block.hasTileEntity();
+        return block.renderAsNormalBlock() && !block.hasTileEntity(0);
     }
 
     public int materialMultiple() {
         int factor = 1;
         ItemStack materialStack = getStackInSlot(materialSlot);
+
         if (materialStack != null) {
             Block materialBlock = Block.getBlockFromItem(materialStack.getItem());
-            if (materialBlock instanceof BlockSlab) factor = 2;
+            if (materialBlock instanceof BlockSlab) {
+                factor = 2;
+            }
+
+            Shape shape = BlockCompatUtils.extractShapeFromItemStack(materialStack);
+            if (shape != null) {
+                return factor * shape.itemsProduced;
+            }
         }
+
         Shape shape = getSelectedShape();
-        if (shape != null) return factor * shape.materialUsed;
+        if (shape != null) {
+            return factor * shape.materialUsed;
+        }
+
         return 0;
     }
 
     public int resultMultiple() {
-        // return productMadeForShape[selectedShape];
+        ItemStack materialStack = getStackInSlot(materialSlot);
+        IBlockState blockState = BlockCompatUtils.extractBlockStateFromItemStack(materialStack);
+
+        if (blockState != null) {
+            Block materialBlock = blockState.getBlock();
+            int factor = materialBlock instanceof BlockSlab ? 2 : 1;
+
+            Shape shape = BlockCompatUtils.extractShapeFromItemStack(materialStack);
+            if (shape != null) {
+                return factor * shape.materialUsed;
+            }
+        }
+
         Shape shape = getSelectedShape();
         if (shape != null) return shape.itemsProduced;
         return 0;
@@ -470,4 +517,48 @@ public class TileSawbench extends TileArchitectureInventory implements IRestrict
         return materialSideSlots;
     }
 
+    /**
+     *
+     * @param materialStack Any ItemStack
+     * @return ItemStack, if materialStack.item is ArchitectureItemBlock, otherwise null
+     */
+    @Nullable
+    private ItemStack uncraftArchitectureBlock(@Nullable ItemStack materialStack) {
+        if (materialStack == null) {
+            return null;
+        }
+
+        NBTTagCompound tag = materialStack.stackTagCompound;
+        if (tag == null) {
+            return null;
+        }
+
+        IBlockState blockState = BlockCompatUtils.extractBlockStateFromItemStack(materialStack);
+        if (blockState == null || blockState.getBlock() == null) {
+            return null;
+        }
+
+        if (!isAcceptableMaterial(blockState.getBlock())) {
+            return null;
+        }
+
+        Item item = Item.getItemFromBlock(blockState.getBlock());
+        if (item == null) {
+            return null;
+        }
+
+        Shape shape = BlockCompatUtils.extractShapeFromItemStack(materialStack);
+        if (shape == null) {
+            return null;
+        }
+
+        int factor = blockState.getBlock() instanceof BlockSlab ? 2 : 1;
+        int meta = (blockState instanceof MetaBlockState metaBlockState) ? metaBlockState.meta : 0;
+
+        if (shape.itemsProduced <= materialStack.stackSize) {
+            return new ItemStack(item, factor * shape.materialUsed, meta);
+        }
+
+        return null;
+    }
 }

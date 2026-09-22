@@ -6,10 +6,14 @@
 
 package gcewing.architecture.compat;
 
+import javax.annotation.Nullable;
+
 import net.minecraft.block.Block;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.IIcon;
 import net.minecraft.world.IBlockAccess;
@@ -18,6 +22,9 @@ import net.minecraft.world.World;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 import gcewing.architecture.common.block.BlockArchitecture;
+import gcewing.architecture.common.item.ArchitectureItemBlock;
+import gcewing.architecture.common.item.ItemCladding;
+import gcewing.architecture.common.shape.Shape;
 
 public class BlockCompatUtils {
 
@@ -135,6 +142,84 @@ public class BlockCompatUtils {
         Block block = state.getBlock();
         int meta = getMetaFromBlockState(state);
         return new ItemStack(block, size, meta);
+    }
+
+    /**
+     * Extracts the Shape data of an Architecture Block
+     * 
+     * @param stack ItemStack of any kind
+     * @return The Shape used for the ItemStack, if the item is an ArchitectureBlock, otherwise null
+     */
+    @Nullable
+    public static Shape extractShapeFromItemStack(@Nullable ItemStack stack) {
+        if (stack == null) {
+            return null;
+        }
+
+        Item stackItem = stack.getItem();
+        if (stackItem instanceof ItemCladding) {
+            return Shape.CladdingSheet;
+        }
+
+        if (!(stackItem instanceof ArchitectureItemBlock)) {
+            return null;
+        }
+
+        NBTTagCompound tag = stack.getTagCompound();
+        if (tag == null) {
+            return null;
+        }
+
+        if (!tag.hasKey("Shape")) {
+            return null;
+        }
+
+        int shapeId = tag.getInteger("Shape");
+        if (shapeId < 0) {
+            return null;
+        }
+
+        return Shape.forId(shapeId);
+    }
+
+    /**
+     * Extracts the used Block and metadata data of an Architecture Block
+     * 
+     * @param stack ItemStack of any kind
+     * @return The specific Block and meta the block crafted from, if the item is an ArchitectureBlock, otherwise null
+     */
+    @Nullable
+    public static IBlockState extractBlockStateFromItemStack(@Nullable ItemStack stack) {
+        if (stack == null) {
+            return null;
+        }
+
+        Item stackItem = stack.getItem();
+        if (stackItem instanceof ItemCladding itemCladding) {
+            return itemCladding.blockStateFromStack(stack);
+        }
+
+        if (!(stackItem instanceof ArchitectureItemBlock)) {
+            return null;
+        }
+
+        NBTTagCompound tag = stack.getTagCompound();
+        if (tag == null) {
+            return null;
+        }
+
+        Block baseBlock = Block.getBlockFromName(tag.getString("BaseName"));
+        if (baseBlock == null) {
+            return null;
+        }
+
+        int baseMetadata = tag.getInteger("BaseData");
+        Item item = Item.getItemFromBlock(baseBlock);
+        if (item == null) {
+            return null;
+        }
+
+        return new MetaBlockState(baseBlock, baseMetadata);
     }
 
     // ------------------------------------------------------------------------------------------------
