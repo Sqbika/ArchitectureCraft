@@ -133,10 +133,10 @@ import gcewing.architecture.common.item.ArchitectureItemBlock;
 import gcewing.architecture.common.item.ItemCladding;
 import gcewing.architecture.common.shape.Shape;
 import gcewing.architecture.common.shape.ShapePage;
-import gcewing.architecture.compat.BlockCompatUtils;
 import gcewing.architecture.compat.Directions;
 import gcewing.architecture.compat.IBlockState;
 import gcewing.architecture.compat.MetaBlockState;
+import gcewing.architecture.util.Utils;
 
 public class TileSawbench extends TileArchitectureInventory implements IRestrictedDroppingInventory {
 
@@ -146,9 +146,9 @@ public class TileSawbench extends TileArchitectureInventory implements IRestrict
     final public static int[] materialSideSlots = { materialSlot };
     final public static int[] resultSideSlots = { resultSlot };
 
-    private final static int GLOW_PAGE_IDX = 7;
-
     public static final boolean allowAutomation = false;
+
+    private final static int GLOW_PAGE_IDX = 7;
 
     public static final ShapePage[] pages = {
             new ShapePage(
@@ -417,7 +417,7 @@ public class TileSawbench extends TileArchitectureInventory implements IRestrict
         }
 
         Item materialItem = materialStack.getItem();
-        if (materialItem instanceof ArchitectureItemBlock || materialItem instanceof ItemCladding) {
+        if ((materialItem instanceof ArchitectureItemBlock) || (materialItem instanceof ItemCladding)) {
             ItemStack resultStack = uncraftArchitectureBlock(materialStack);
             if (resultStack != null) {
                 return resultStack;
@@ -426,7 +426,7 @@ public class TileSawbench extends TileArchitectureInventory implements IRestrict
 
         if (materialItem instanceof ItemBlock) {
             Block materialBlock = Block.getBlockFromItem(materialItem);
-            int factor = materialBlock instanceof BlockSlab ? 2 : 1;
+            int factor = (materialBlock instanceof BlockSlab) ? 2 : 1;
             if (materialStack.stackSize >= resultShape.materialUsed * factor) {
                 if (isAcceptableMaterial(materialBlock)) {
                     return resultShape.kind.newStack(
@@ -460,7 +460,7 @@ public class TileSawbench extends TileArchitectureInventory implements IRestrict
                 factor = 2;
             }
 
-            Shape shape = BlockCompatUtils.extractShapeFromItemStack(materialStack);
+            Shape shape = Utils.extractShapeFromItemStack(materialStack);
             if (shape != null) {
                 return factor * shape.itemsProduced;
             }
@@ -476,20 +476,23 @@ public class TileSawbench extends TileArchitectureInventory implements IRestrict
 
     public int resultMultiple() {
         ItemStack materialStack = getStackInSlot(materialSlot);
-        IBlockState blockState = BlockCompatUtils.extractBlockStateFromItemStack(materialStack);
+        IBlockState blockState = Utils.extractBlockStateFromItemStack(materialStack);
 
         if (blockState != null) {
             Block materialBlock = blockState.getBlock();
-            int factor = materialBlock instanceof BlockSlab ? 2 : 1;
+            int factor = (materialBlock instanceof BlockSlab) ? 2 : 1;
 
-            Shape shape = BlockCompatUtils.extractShapeFromItemStack(materialStack);
+            Shape shape = Utils.extractShapeFromItemStack(materialStack);
             if (shape != null) {
                 return factor * shape.materialUsed;
             }
         }
 
         Shape shape = getSelectedShape();
-        if (shape != null) return shape.itemsProduced;
+        if (shape != null) {
+            return shape.itemsProduced;
+        }
+
         return 0;
     }
 
@@ -518,9 +521,10 @@ public class TileSawbench extends TileArchitectureInventory implements IRestrict
     }
 
     /**
-     *
+     * Extract the source Block used to craft the specified Architecture block (Cladding or ArchitectureItemBlock)
+     * 
      * @param materialStack Any ItemStack
-     * @return ItemStack, if materialStack.item is ArchitectureItemBlock, otherwise null
+     * @return ItemStack, if materialStack.item is ArchitectureItemBlock or ItemCladding, otherwise null
      */
     @Nullable
     private ItemStack uncraftArchitectureBlock(@Nullable ItemStack materialStack) {
@@ -533,8 +537,8 @@ public class TileSawbench extends TileArchitectureInventory implements IRestrict
             return null;
         }
 
-        IBlockState blockState = BlockCompatUtils.extractBlockStateFromItemStack(materialStack);
-        if (blockState == null || blockState.getBlock() == null) {
+        IBlockState blockState = Utils.extractBlockStateFromItemStack(materialStack);
+        if ((blockState == null) || (blockState.getBlock() == null)) {
             return null;
         }
 
@@ -547,7 +551,7 @@ public class TileSawbench extends TileArchitectureInventory implements IRestrict
             return null;
         }
 
-        Shape shape = BlockCompatUtils.extractShapeFromItemStack(materialStack);
+        Shape shape = Utils.extractShapeFromItemStack(materialStack);
         if (shape == null) {
             return null;
         }
